@@ -220,17 +220,25 @@ module ActiveRecord
         constructor = options[:constructor] || :new
         converter   = options[:converter]
 
-        reader_method(name, class_name, mapping, allow_nil, constructor)
-        writer_method(name, class_name, mapping, allow_nil, converter)
+        renamed_attributes = {}
+        unless (index = mapping.index{|pair| pair.first.to_s == name}).nil?
+          define_attribute_methods
+          alias_method "#{name}_without_compose_of", name
+          alias_method "#{name}_without_compose_of=", "#{name}="
+          renamed_attributes[name] = "#{name}_without_compose_of"
+        end
+
+        reader_method(name, class_name, mapping, allow_nil, constructor, renamed_attributes)
+        writer_method(name, class_name, mapping, allow_nil, converter, renamed_attributes)
 
         create_reflection(:composed_of, part_id, options, self)
       end
 
       private
-        def reader_method(name, class_name, mapping, allow_nil, constructor)
+        def reader_method(name, class_name, mapping, allow_nil, constructor, renamed_attributes = {})
           define_method(name) do
-            if @aggregation_cache[name].nil? && (!allow_nil || mapping.any? {|pair| !self.send(pair.first).nil? })
-              attrs = mapping.collect {|pair| self.send(pair.first)}
+            if @aggregation_cache[name].nil? && (!allow_nil || mapping.any? {|pair| !self.send(renamed_attributes[pair.first] || pair.first).nil? })
+              attrs = mapping.collect {|pair| self.send(renamed_attributes[pair.first] || pair.first)}
               object = constructor.respond_to?(:call) ?
                 constructor.call(*attrs) :
                 class_name.constantize.send(constructor, *attrs)
@@ -240,7 +248,7 @@ module ActiveRecord
           end
         end
 
-        def writer_method(name, class_name, mapping, allow_nil, converter)
+        def writer_method(name, class_name, mapping, allow_nil, converter, renamed_attributes = {})
           define_method("#{name}=") do |part|
             klass = class_name.constantize
             unless part.is_a?(klass) || converter.nil? || part.nil?
@@ -248,7 +256,7 @@ module ActiveRecord
             end
 
             if part.nil? && allow_nil
-              mapping.each { |pair| self[pair.first] = nil }
+              mapping.each { |pair| self.send("#{renamed_attributes[pair.first] || pair.first}=", nil) }
               @aggregation_cache[name] = nil
             else
               mapping.each { |pair| self[pair.first] = part.send(pair.last) }
