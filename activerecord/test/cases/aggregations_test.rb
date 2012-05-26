@@ -210,4 +210,5 @@ class MethodAndDelegationAggregationsTest <ActiveRecord::TestCase
     person.some_class =  MethodAndDelegationAggregationsTest::DelegateTest.new
     assert_equal person.delegated_name, "Bart Boop"
   end
+
 end
