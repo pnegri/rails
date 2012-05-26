@@ -244,7 +244,7 @@ module ActiveRecord
           end
         end
 
-        def writer_method(name, class_name, mapping, allow_nil, converter, renamed_attributes = {})
+        def writer_method(name, class_name, mapping, allow_nil, converter)
           define_method("#{name}=") do |part|
             klass = class_name.constantize
             unless part.is_a?(klass) || converter.nil? || part.nil?
@@ -252,7 +252,7 @@ module ActiveRecord
             end
 
             if part.nil? && allow_nil
-              mapping.each { |pair| self.send("#{renamed_attributes[pair.first] || pair.first}=", nil) }
+              mapping.each { |pair| self[pair.first] = nil }
               @aggregation_cache[name] = nil
             else
               mapping.each { |pair| self[pair.first] = part.send(pair.last) }
